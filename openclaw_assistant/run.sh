@@ -492,10 +492,7 @@ shutdown() {
     wait "${GW_PID}" || true
   fi
 
-  if [ -n "${GW_RELAY_PID}" ] && kill -0 "${GW_RELAY_PID}" >/dev/null 2>&1; then
-    kill -TERM "${GW_RELAY_PID}" >/dev/null 2>&1 || true
-    wait "${GW_RELAY_PID}" || true
-  fi
+  stop_gw_relay
 
   if [ "$CLEAN_LOCKS_ON_EXIT" = "true" ]; then
     cleanup_session_locks || true
@@ -811,25 +808,27 @@ PY
   return 0
 }
 
-if ! start_openclaw_runtime; then
-  exit 1
-fi
-
-# --- Loopback relay for tailnet bind mode (issue #90) ---
+# --- Loopback relay helpers for tailnet bind mode (issue #90) ---
 # When gateway.bind=tailnet the gateway only listens on the Tailscale IP.
 # The local CLI always tries ws://127.0.0.1:PORT and fails with
 # "Gateway not running" even though the gateway is healthy.
-# A lightweight Node.js relay (loopback-only) forwards those connections
-# to the Tailscale IP so terminal CLI commands work normally.
-# Token auth is still enforced end-to-end by the gateway.
-if [ "$GATEWAY_BIND_MODE" = "tailnet" ]; then
-  TAILSCALE_IP=$(ip -4 addr show tailscale0 2>/dev/null \
+# These functions start/stop a lightweight Node.js TCP relay on
+# 127.0.0.1:PORT -> TAILSCALE_IP:PORT so terminal CLI commands work.
+# IMPORTANT: stop_gw_relay must be called before restarting the gateway;
+# otherwise the relay holds the loopback port and the new gateway instance
+# detects it as "already listening" and exits with code 1.
+start_gw_relay() {
+  if [ "$GATEWAY_BIND_MODE" != "tailnet" ]; then
+    return 0
+  fi
+  local ts_ip
+  ts_ip=$(ip -4 addr show tailscale0 2>/dev/null \
     | awk '/inet /{gsub(/\/.*/,"",$2); print $2; exit}' || true)
-  if [[ "${TAILSCALE_IP:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "INFO: Starting loopback relay for tailnet gateway (127.0.0.1:${GATEWAY_PORT} -> ${TAILSCALE_IP}:${GATEWAY_PORT})"
+  if [[ "${ts_ip:-}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "INFO: Starting loopback relay for tailnet gateway (127.0.0.1:${GATEWAY_PORT} -> ${ts_ip}:${GATEWAY_PORT})"
     node -e "
 const net = require('net');
-const TARGET_HOST = '${TAILSCALE_IP}';
+const TARGET_HOST = '${ts_ip}';
 const TARGET_PORT = ${GATEWAY_PORT};
 const server = net.createServer(function(c) {
   const t = net.createConnection(TARGET_PORT, TARGET_HOST);
@@ -844,7 +843,21 @@ server.listen(TARGET_PORT, '127.0.0.1');" &
     echo "WARN: tailnet bind mode active but Tailscale IP not found on tailscale0 interface."
     echo "WARN: Terminal CLI may show gateway as unreachable. Ensure Tailscale is running and restart."
   fi
+}
+
+stop_gw_relay() {
+  if [ -n "${GW_RELAY_PID}" ] && kill -0 "${GW_RELAY_PID}" >/dev/null 2>&1; then
+    kill -TERM "${GW_RELAY_PID}" >/dev/null 2>&1 || true
+    wait "${GW_RELAY_PID}" 2>/dev/null || true
+    GW_RELAY_PID=""
+  fi
+}
+
+if ! start_openclaw_runtime; then
+  exit 1
 fi
+
+start_gw_relay
 
 # Start web terminal (optional)
 TTYD_PID_FILE="/var/run/openclaw-ttyd.pid"
@@ -967,12 +980,13 @@ while true; do
   fi
 
   # Detect agent/user-initiated self-restart (e.g. 'openclaw gateway restart').
-  # When the gateway restarts itself, the old PID exits but a new process immediately
-  # binds the same port. Without this check the supervisor would spawn a second
-  # instance, which fails with "already listening" and loops forever.
-  # Give the new process a moment to start, then re-track it instead of spawning a duplicate.
+  # 'openclaw gateway run' spawns 'openclaw-gateway' as the actual long-running
+  # daemon; the launcher wrapper exits immediately. The old pattern '.*run' never
+  # matched the live daemon name, so the supervisor always fell through to the
+  # restart path, hit the gateway still on the port, and looped forever.
+  # Use the broader pattern that matches both 'openclaw-gateway' and 'openclaw node run'.
   sleep 1
-  RESTARTED_PID=$(pgrep -f "openclaw.*(gateway|node).*run" 2>/dev/null | head -1 || true)
+  RESTARTED_PID=$(pgrep -f "openclaw.*(gateway|node)" 2>/dev/null | head -1 || true)
   if [ -n "$RESTARTED_PID" ] && [ "$RESTARTED_PID" != "$GW_PID" ]; then
     echo "INFO: OpenClaw runtime restarted itself (new PID $RESTARTED_PID); re-tracking."
     GW_PID="$RESTARTED_PID"
@@ -982,8 +996,15 @@ while true; do
   echo "WARN: OpenClaw runtime exited with code ${GW_EXIT_CODE}. Restarting in 2s..."
   sleep 2
 
+  # Stop the loopback relay BEFORE restarting the gateway (tailnet mode only).
+  # The relay holds 127.0.0.1:GATEWAY_PORT — leaving it up causes the new gateway
+  # to detect the port as occupied and exit with code 1, re-entering the loop.
+  stop_gw_relay
+
   if ! start_openclaw_runtime; then
     echo "ERROR: Failed to restart OpenClaw runtime; retrying in 5s..."
     sleep 5
+  else
+    start_gw_relay
   fi
 done

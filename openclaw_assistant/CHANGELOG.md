@@ -2,6 +2,11 @@
 
 All notable changes to the OpenClaw Assistant Home Assistant Add-on will be documented in this file.
 
+## [0.5.61] - 2026-03-10
+
+### Fixed
+- **Gateway restart loop** (issue #95): `openclaw gateway run` spawns `openclaw-gateway` as the actual long-running daemon; the launcher wrapper exits immediately. The old self-restart detection used `pgrep -f "openclaw.*(gateway|node).*run"` which never matched the live daemon name, so the supervisor always fell through to the restart path, found the port occupied, and looped forever with "already listening". Fixed by using the pattern `openclaw.*(gateway|node)` (without `.*run`) which correctly matches `openclaw-gateway`. Additionally, the loopback relay (tailnet mode) is now stopped before restarting the gateway and restarted after, preventing it from holding the port during supervisor-initiated restarts.
+
 ## [0.5.60] - 2026-03-10
 
 ### Fixed
@@ -9,8 +14,6 @@ All notable changes to the OpenClaw Assistant Home Assistant Add-on will be docu
 
 ## [0.5.59] - 2026-03-10
 
-### Fixed
-- **Gateway restart loop** (issue #95): when the agent or user ran `openclaw gateway restart`, the supervisor loop detected the old PID exiting and immediately spawned a second gateway instance, which collided with the already-restarted one and looped with "another gateway instance is already listening". The supervisor now detects a self-restart (new PID already running on the same port) and re-tracks it instead of spawning a duplicate.
 - **Remote mode URL not propagated** (issue #93): `start_openclaw_runtime` was reading `gateway.remote.url` back via `openclaw config get`, which can time out (2 s limit at startup) or return an empty/redacted result. The function now uses `$GATEWAY_REMOTE_URL` directly from the already-parsed add-on options, which is the same value the config helper writes to `openclaw.json`.
 - **Terminal CLI unreachable in tailnet mode** (issue #90): when `gateway_bind_mode=tailnet` (or `access_mode=tailnet_https`), the gateway binds only to the Tailscale IP. The local CLI always connects via `ws://127.0.0.1:PORT`, causing "Gateway not running" inside the add-on terminal. A lightweight loopback relay (Node.js) is now started automatically to forward `127.0.0.1:PORT → TAILSCALE_IP:PORT`, making all terminal CLI commands work normally. Token auth is still enforced end-to-end by the gateway.
 - **Session lock cleanup ignored non-default agents**: `cleanup_session_locks` was hardcoded to `agents/main/sessions`, skipping stale locks for any agent with a custom `forcedAgentId`. Stale locks could block the gateway from opening sessions for those agents, causing silent fallback to `main`. Cleanup now scans all `agents/*/sessions/` directories.
