@@ -2,6 +2,12 @@
 
 All notable changes to the OpenClaw Assistant Home Assistant Add-on will be documented in this file.
 
+## [0.5.64] - 2026-04-03
+
+### Changed
+- Bump OpenClaw to 2026.4.2.
+- Point add-on repository metadata to the `NewFolk/OpenClawHomeAssistant` fork for release traceability.
+
 ## [0.5.63] - 2026-03-14
 
 ### Changed
