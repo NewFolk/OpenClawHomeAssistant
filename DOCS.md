@@ -58,8 +58,8 @@ When you open the add-on page in Home Assistant, nginx serves a landing page wit
 
 1. In Home Assistant, go to **Settings → Add-ons → Add-on store**
 2. Click ⋮ (top-right) → **Repositories** → paste one of:
-   - **Stable**: `https://github.com/techartdev/OpenClawHomeAssistant`
-   - **Dev/Experimental**: `https://github.com/techartdev/OpenClawHomeAssistant-dev`
+   - **Stable**: `https://github.com/NewFolk/OpenClawHomeAssistant`
+   - **Dev/Experimental**: use the fork's non-main branch if/when needed
 3. Find and install **OpenClaw Assistant**
 4. Click **Start**
 
