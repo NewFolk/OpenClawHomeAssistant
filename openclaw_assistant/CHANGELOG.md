@@ -2,6 +2,11 @@
 
 All notable changes to the OpenClaw Assistant Home Assistant Add-on will be documented in this file.
 
+## [0.5.70] - 2026-04-17
+
+### Changed
+- Bump OpenClaw to 2026.4.15 (add-on 0.5.70).
+
 ## [0.5.69] - 2026-04-16
 
 ### Changed
