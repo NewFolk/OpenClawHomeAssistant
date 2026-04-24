@@ -1,4 +1,4 @@
-# OpenClaw Assistant – Home Assistant App/Add-on
+# OpenClaw Assistant - NewFolk – Home Assistant App/Add-on
 
 ## [Join our Discord Server!](https://discord.gg/xeHeKu9jYp)
 <img width="1038" height="597" alt="image" src="https://github.com/user-attachments/assets/6dae3918-7bad-4e89-9695-c7f549e8abda" />
@@ -40,7 +40,7 @@ This repository contains a Home Assistant add-on that runs **OpenClaw** inside *
 2. **⋮ → Repositories**
 3. Add this repo:
    - `https://github.com/NewFolk/OpenClawHomeAssistant`
-4. Install **OpenClaw Assistant**
+4. Install **OpenClaw Assistant - NewFolk**
 
 ## Star History
 

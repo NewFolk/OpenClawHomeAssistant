@@ -770,7 +770,7 @@ elif [ "$AUTO_CONFIGURE_MCP" = "true" ] && [ -z "$HA_TOKEN" ]; then
 fi
 
 start_openclaw_runtime() {
-  echo "Starting OpenClaw Assistant runtime (openclaw)..."
+  echo "Starting OpenClaw Assistant - NewFolk runtime (openclaw)..."
   if [ "$GATEWAY_MODE" = "remote" ]; then
     # Remote mode: do NOT start a local gateway service.
     # Start a node/client host that connects to the configured remote gateway URL.

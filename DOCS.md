@@ -1,4 +1,4 @@
-# OpenClaw Assistant — Home Assistant Add-on Documentation
+# OpenClaw Assistant - NewFolk — Home Assistant Add-on Documentation
 
 This add-on runs [OpenClaw](https://github.com/openclaw/openclaw) inside Home Assistant OS (HAOS). It provides a fully self-contained environment with a web terminal, gateway server, and all the tools OpenClaw needs — no manual Docker setup required.
 
@@ -60,7 +60,7 @@ When you open the add-on page in Home Assistant, nginx serves a landing page wit
 2. Click ⋮ (top-right) → **Repositories** → paste one of:
    - **Stable**: `https://github.com/NewFolk/OpenClawHomeAssistant`
    - **Dev/Experimental**: use the fork's non-main branch if/when needed
-3. Find and install **OpenClaw Assistant**
+3. Find and install **OpenClaw Assistant - NewFolk**
 4. Click **Start**
 
 **Supported architectures**: amd64, aarch64 (Raspberry Pi 4/5), armv7
@@ -130,7 +130,7 @@ The Gateway Web UI (Control UI) is OpenClaw's main web interface. It opens in a 
 
 ### Choosing an access mode
 
-Set `access_mode` in **Settings → Add-ons → OpenClaw Assistant → Configuration**:
+Set `access_mode` in **Settings → Add-ons → OpenClaw Assistant - NewFolk → Configuration**:
 
 | Mode | Best for | What it does |
 |---|---|---|
@@ -144,7 +144,7 @@ Set `access_mode` in **Settings → Add-ons → OpenClaw Assistant → Configura
 
 This is the simplest way to get secure LAN access, especially for phones and tablets.
 
-1. Go to **Settings → Add-ons → OpenClaw Assistant → Configuration**
+1. Go to **Settings → Add-ons → OpenClaw Assistant - NewFolk → Configuration**
 2. Set `access_mode`: **lan_https**
 3. Restart the add-on
 
@@ -253,7 +253,7 @@ jq -r '.gateway.auth.token' /config/.openclaw/openclaw.json
 
 ## 5. Configuration Reference
 
-All options are set via **Settings → Apps/Add-ons → OpenClaw Assistant → Configuration** in Home Assistant. They are applied automatically on each add-on restart.
+All options are set via **Settings → Apps/Add-ons → OpenClaw Assistant - NewFolk → Configuration** in Home Assistant. They are applied automatically on each add-on restart.
 
 ### General
 
@@ -326,7 +326,7 @@ This is the most common setup — accessing the Gateway Web UI from a browser on
 
 #### Option 1 — Built-in HTTPS proxy (recommended)
 
-1. Go to **Settings → Add-ons → OpenClaw Assistant → Configuration**
+1. Go to **Settings → Add-ons → OpenClaw Assistant - NewFolk → Configuration**
 2. Set `access_mode`: **lan_https**
 3. Restart the add-on
 4. Click the **Open Gateway Web UI** button — it uses HTTPS automatically
@@ -335,7 +335,7 @@ This is the most common setup — accessing the Gateway Web UI from a browser on
 
 #### Option 2 — External reverse proxy
 
-1. Go to **Settings → Add-ons → OpenClaw Assistant → Configuration**
+1. Go to **Settings → Add-ons → OpenClaw Assistant - NewFolk → Configuration**
 2. Set these options:
 
 | Option | Value |
@@ -489,7 +489,7 @@ The **Model Context Protocol (MCP)** lets OpenClaw communicate directly with Hom
    - Go to your HA profile page (click your user avatar at the bottom of the sidebar)
    - Scroll to **Long-Lived Access Tokens** → **Create Token**
    - Give it a name (e.g. "OpenClaw") and copy the token
-2. Paste the token into the add-on option **Home Assistant Token** (`homeassistant_token`) in **Settings → Add-ons → OpenClaw Assistant → Configuration**
+2. Paste the token into the add-on option **Home Assistant Token** (`homeassistant_token`) in **Settings → Add-ons → OpenClaw Assistant - NewFolk → Configuration**
 3. Set **Auto-Configure MCP for Home Assistant** (`auto_configure_mcp`) to **ON**
 4. Restart the add-on
 
@@ -733,7 +733,7 @@ The tool displays:
 
 Home Assistant checks for add-on updates automatically. When an update is available:
 
-1. Go to **Settings → Add-ons → OpenClaw Assistant**
+1. Go to **Settings → Add-ons → OpenClaw Assistant - NewFolk**
 2. Click **Update**
 3. The add-on will rebuild with the new image
 
@@ -785,7 +785,7 @@ Then restart the add-on. It will re-bootstrap a fresh configuration.
 
 ### How to read add-on logs
 
-Go to **Settings → Add-ons → OpenClaw Assistant → Log** tab. Logs show startup messages, errors, and service status.
+Go to **Settings → Add-ons → OpenClaw Assistant - NewFolk → Log** tab. Logs show startup messages, errors, and service status.
 
 ### Port 48099 conflict (add-on page won't load)
 
@@ -901,7 +901,7 @@ Paste this token when the UI prompts for authentication, or append it to the URL
 
 **Cause**: Node 22 uses `autoSelectFamily` which tries IPv6 first. Most HAOS VMs have IPv6 DNS resolution but no IPv6 egress, so connections time out before falling back to IPv4.
 
-**Fix**: Ensure `force_ipv4_dns` is **true** (default since v0.5.51). If you upgraded from an older version, the option may still be set to `false` — change it to `true` in **Settings → Add-ons → OpenClaw Assistant → Configuration** and restart.
+**Fix**: Ensure `force_ipv4_dns` is **true** (default since v0.5.51). If you upgraded from an older version, the option may still be set to `false` — change it to `true` in **Settings → Add-ons → OpenClaw Assistant - NewFolk → Configuration** and restart.
 
 ### Telegram network errors (`TypeError: fetch failed` / `getUpdates` fails)
 

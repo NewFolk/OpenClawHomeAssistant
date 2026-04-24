@@ -2,7 +2,7 @@
 
 ## Project Scope
 
-This repository builds the **OpenClaw Assistant (DEV)** Home Assistant add-on.
+This repository builds the **OpenClaw Assistant - NewFolk (DEV)** Home Assistant add-on.
 The add-on packages OpenClaw + nginx + ttyd and manages startup/configuration glue.
 
 ## Architecture at a Glance
