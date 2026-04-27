@@ -1,5 +1,5 @@
 name: OpenClaw Assistant - NewFolk
-version: "0.5.72"
+version: "0.5.73"
 slug: openclaw_assistant
 description: Run OpenClaw Assistant - NewFolk (OpenClaw-compatible) as a Home Assistant add-on.
 url: https://github.com/NewFolk/OpenClawHomeAssistant
