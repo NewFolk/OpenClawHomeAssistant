@@ -2,6 +2,11 @@
 
 All notable changes to the OpenClaw Assistant - NewFolk Home Assistant Add-on will be documented in this file.
 
+## [0.5.76] - 2026-05-04
+
+### Changed
+- Bump bundled OpenClaw runtime to 2026.5.2.
+
 ## [0.5.75] - 2026-05-02
 
 ### Changed
