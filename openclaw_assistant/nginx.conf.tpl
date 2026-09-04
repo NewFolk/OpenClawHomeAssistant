@@ -16,6 +16,21 @@ http {
   sendfile        on;
   keepalive_timeout  65;
 
+  # The same-host Home Assistant integration can connect through the HTTPS
+  # listener over loopback. Forwarded identity headers with a loopback client
+  # address are rejected by OpenClaw 2026.8.2+, so omit all proxy identity
+  # headers for that local path. For real LAN clients, overwrite (never append)
+  # the client address so untrusted inbound X-Forwarded-For is discarded.
+  map $remote_addr $gateway_proxy_client_ip {
+    default $remote_addr;
+    127.0.0.1 "";
+    ::1 "";
+  }
+  map $gateway_proxy_client_ip $gateway_proxy_scheme {
+    default https;
+    "" "";
+  }
+
   # Ingress note: keep redirects relative so we stay under HA Ingress.
 
   server {

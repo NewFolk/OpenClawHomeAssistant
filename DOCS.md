@@ -1207,7 +1207,7 @@ oc-config diff 1
 
 **Cause**: OpenClaw `2026.8.2+` rejects requests that carry forwarded identity headers (`X-Forwarded-For`, `X-Real-IP`, `Forwarded`) from a source that is not listed in `gateway.trustedProxies`. It fails closed rather than trusting a client-supplied IP.
 
-**In `lan_https` mode** this is fixed automatically from v0.5.90: the add-on's own HTTPS proxy runs on loopback and sets those headers, so `127.0.0.1` and `::1` are added to `gateway.trustedProxies` for you. Update the add-on and restart.
+**In `lan_https` mode** the add-on's own HTTPS proxy runs on loopback, so only `127.0.0.1` and `::1` are needed in `gateway.trustedProxies`. Do not add the client LAN subnet: trusted entries identify proxies, not clients. From v0.5.91 the proxy also omits forwarded identity headers for same-host loopback clients and overwrites them for real LAN clients. This keeps older Home Assistant integration entries that still use the HTTPS port working while preventing spoofed forwarded chains.
 
 **In `lan_reverse_proxy` mode** (or `custom` with your own proxy), set `gateway_trusted_proxies` to the address your proxy connects *from* — not the address clients use:
 
@@ -1215,9 +1215,9 @@ oc-config diff 1
 gateway_trusted_proxies: "172.30.0.0/16"
 ```
 
-Your proxy must also send a trustworthy `X-Forwarded-For`. In Nginx Proxy Manager this is the default; in a hand-written nginx config use `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
+Your proxy must also send a trustworthy `X-Forwarded-For`. In a hand-written single-hop nginx config, overwrite the inbound value with `proxy_set_header X-Forwarded-For $remote_addr;`; do not append an untrusted client-supplied header.
 
-> **Note**: the resolved client IP must not itself be loopback. Browsing from the Home Assistant host over `127.0.0.1` through the proxy therefore still fails attribution — use the machine's LAN address instead.
+> **Note**: the resolved proxied client IP must not itself be loopback. The built-in v0.5.91 proxy handles same-host requests by suppressing proxy identity headers so normal token authentication applies directly.
 
 ### Gateway restart loop after an OpenClaw upgrade (`requires migration`)
 
