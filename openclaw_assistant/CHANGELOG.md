@@ -48,9 +48,142 @@ All notable changes to the OpenClaw Assistant - NewFolk Home Assistant Add-on wi
 ### Changed
 - Bump OpenClaw to 2026.4.12 (add-on 0.5.68).
 
+## [0.5.90] - 2026-09-02
+
+### Added
+- **Resource profiles** (`resource_profile`): the add-on now gives the gateway an explicit Node.js heap budget instead of letting it size against total host memory. `auto` (default) picks `low` / `balanced` / `high` from CPU architecture and RAM, and never writes to `openclaw.json`. Selecting `low` explicitly also applies conservative OpenClaw defaults (currently `browser.enabled: false`) for keys you have not set yourself. The resolved profile and heap limit are logged at startup and shown on the landing page.
+- **Home Assistant health sensors** (`ha_health_sensors`, `ha_health_interval`): optionally publish `sensor.openclaw_gateway`, `sensor.openclaw_version`, `sensor.openclaw_gateway_memory`, `sensor.openclaw_disk_used` and `sensor.openclaw_certificate_expiry` so you can alert on gateway health, disk usage and certificate expiry from automations. Requires `homeassistant_token`. New `oc-health` helper (`show` / `once` / `loop`) for previewing and debugging.
+- **Config snapshots and rollback** (`config_backup_keep`): `openclaw.json` is now snapshotted to `/config/.openclaw/backups` before the add-on's first configuration write of each start, so an unwanted change can be undone. New `oc-config` helper: `list`, `diff`, `restore`, `snapshot`. Restoring always backs up the config it replaces first. Identical configs are not re-snapshotted, and only the newest `config_backup_keep` (default 10) are kept.
+- New `ha_base_url` option to point the health sensors at a Home Assistant on a non-default port or host (empty = auto-detect).
+- `oc-health check`: diagnoses credentials and API connectivity in one command — which endpoint was chosen, whether a token is present, whether the Supervisor host resolves, and the result of a live probe.
+- Supervisor watchdog on the ingress port, so Home Assistant restarts the add-on if the ingress proxy stops answering. Can be turned off with the Watchdog toggle on the add-on page.
+- **Smaller Home Assistant backups**: the add-on now declares `backup_exclude`, so regenerable caches and tooling (`.linuxbrew`, `.node_global`, `.npm`, `.cache`, `__pycache__`, stale `*.jsonl.lock` files) are skipped when Home Assistant backs the add-on up. Excluded directories are pruned without being walked, so backups are both smaller and faster. All user state — `openclaw.json`, config snapshots, skills, agent sessions, the `clawd` workspace, keys, secrets and certificates — is still backed up. Note that a restore replaces `/config` wholesale, so excluded tooling must be reinstalled rather than restored.
+
+### Changed
+- **Documentation reviewed against OpenClaw `2026.8.2`.** Added a *Device pairing (first connection)* walkthrough — the gateway host is the add-on container, so `openclaw devices list` / `openclaw devices approve <requestId>` in the add-on terminal is all that is needed, and the `ssh -N -L` hint printed by `openclaw dashboard` does not apply here. Corrected the long-standing claim that the Control UI requires HTTPS or localhost: upstream removed that restriction (device identity is signed with pure-JS Ed25519 on any origin), so the guidance now recommends HTTPS for token confidentiality rather than presenting it as mandatory. Rewrote the two error-1008 troubleshooting entries around pairing, and marked `controlui_disable_device_auth` as deprecated and inert in all six locales.
+- Startup warnings about legacy `/config/.node_global` and `/config/.linuxbrew` directories no longer claim they inflate Home Assistant backups (they are now excluded). The warning explains they only use disk space and gives the exact removal command.
+
+### Fixed
+- **Stopped writing a retired OpenClaw key.** The add-on set `gateway.controlUi.dangerouslyDisableDeviceAuth` on every start to skip Control UI device pairing. OpenClaw retired that flag in the `2026.8.x` line: it is inert, the security audit reports it as a dangerous key, and `openclaw doctor --fix` deletes it — so the add-on was re-adding it every boot and fighting Doctor. The add-on now removes the key instead, which also clears the "dangerous config flags enabled" startup warning. Browsers pair once via `openclaw devices approve <requestId>`.
+- **Health sensors could not reach a Home Assistant that serves HTTPS**: endpoint detection only ever tried plain `http://`, which a TLS listener answers by closing the connection — surfacing as `HTTP 000` (curl: *Empty reply from server*). Detection now probes `https` and `http` across `127.0.0.1`, `localhost`, `homeassistant` and `homeassistant.local`, and uses the first endpoint that answers. TLS verification is skipped for these local endpoints because Home Assistant's certificate is normally issued for its external hostname and never matches a loopback address; the connection stays on the local host/LAN.
+- Detection is retried on later cycles instead of only at startup, so sensors still come up when the add-on starts before Home Assistant is listening.
+- **Health sensors could not reach Home Assistant (`HTTP 000`)**: `oc-health` preferred the Supervisor proxy whenever `SUPERVISOR_TOKEN` was present, but this add-on runs with `host_network: true`, so the container is not on the Supervisor bridge network and the `supervisor` hostname does not resolve. Every sensor update failed at the connection level. It now prefers the user's long-lived token against the host's Home Assistant on `localhost:8123`, and only uses the Supervisor proxy when that hostname actually resolves.
+- The same endpoint-selection bug in the MCP auto-configuration would have registered an unreachable `http://supervisor/core/api/mcp` URL; it now applies the same reachability check.
+- Health sensor failures are logged once per status change instead of one line per entity per interval, so an outage can no longer fill the add-on log (previously ~7000 lines a day).
+- Failures now explain themselves: `HTTP 000` reports that Home Assistant is unreachable at the resolved endpoint, `401`/`403` points at the token, rather than printing a bare status code.
+
+- **`proxy_attribution_required` in `lan_https` mode**: OpenClaw `2026.8.2` began rejecting requests that carry forwarded identity headers from an untrusted source. The add-on's built-in HTTPS proxy runs on loopback and sets `X-Forwarded-For` / `X-Real-IP` / `X-Forwarded-Proto`, but loopback was never added to `gateway.trustedProxies`, so the gateway refused every request with `proxy_attribution_required`. `lan_https` now trusts `127.0.0.1` and `::1` (merged with any `gateway_trusted_proxies` you set, and deduplicated). As a side benefit the gateway can now attribute the real LAN client IP for rate limiting instead of seeing every request as loopback.
+- **Gateway restart loop was not actually recovering** (follow-up to `0.5.104`): the automatic repair ran `openclaw doctor --fix` without `--non-interactive`. With no TTY, Doctor printed advisory notices and skipped the migration, so the loop continued. It now runs `openclaw doctor --fix --non-interactive --yes`, the documented automation form, and reports clearly when Doctor exits non-zero because a legacy source or interrupted `.doctor-importing` claim remains.
+- **Restart backoff never escalated**: gateway uptime was measured after the daemon-detection retry loop, so its sleeps counted as uptime. A gateway that died ~45s into startup measured ~65s, tripped the 60s "healthy" reset, and pinned the retry interval at 2s forever. Uptime is now captured the moment the runtime exits, and the healthy threshold is 120s — comfortably above a normal ~45s cold start. The repair is also attempted after 2 consecutive failures instead of 3, since each failed boot costs about a minute.
+- **Gateway restart loop after an OpenClaw upgrade**: releases that gate startup behind a data migration (such as the legacy workspace state check in `2026.8.2`) made the supervisor restart the gateway forever, writing a stability bundle on every attempt. The add-on now runs the documented `openclaw doctor --fix` repair once per start after repeated failures — snapshotting `openclaw.json` first so it is reversible — and backs off between restarts (2s doubling to a 60s cap) instead of retrying every 2 seconds. After five consecutive failures it logs the exact diagnostic commands to run. The terminal and add-on page stay available throughout.
+- Documentation listed Node.js 22 in the bundled tools table; the image has shipped Node.js 24 since `0.5.83`.
+
+## [0.5.89] - 2026-09-02
+
+### Changed
+- Bump OpenClaw to `2026.8.2`.
+
+## [0.5.88] - 2026-08-25
+
+### Fixed
+- Preserve explicit `false` values for boolean add-on options instead of replacing them with `true` defaults during startup. This restores settings such as strict Control UI device authentication, disabled terminal access, and IPv6-capable DNS behavior after an add-on restart or rebuild.
+
+## [0.5.87] - 2026-08-10
+
+### Fixed
+- Correct the bundled OpenClaw npm package version in the Docker image build for add-on `0.5.86`, fixing failed installs that requested the nonexistent `openclaw@2026.7.1-2-2`.
+
+## [0.5.85] - 2026-07-21
+
+### Changed
+- Bump OpenClaw to `2026.7.1-2`.
+
+## [0.5.84] - 2026-07-17
+
+### Changed
+- Bundle `mcporter@0.12.3` in the add-on image so `auto_configure_mcp` can register Home Assistant out of the box on fresh installs without a manual global install workaround.
+- Replace the misleading startup hint that told users to run `openclaw onboard` when `mcporter` was missing. The message now correctly points to a broken image state instead.
+
+## [0.5.82] - 2026-07-15
+
+### Fixed
+- Repair add-on startup automatically when the bundled OpenClaw CLI is older than the persisted `/config/.openclaw/openclaw.json` format version. On mismatch, the add-on now restores the newer runtime before launching the gateway instead of silently coming up broken after a Home Assistant OS update or add-on rebuild.
+- Regenerate malformed `lan_https` CA/server certificates with proper X.509 extensions (`basicConstraints`, `keyUsage`, `extendedKeyUsage`) so Python/OpenSSL strict verification accepts the built-in HTTPS proxy certificates.
+
+## [0.5.81] - 2026-07-14
+
+### Changed
+- Bump OpenClaw to `2026.7.1`.
+
+## [0.5.80] - 2026-06-26
+
+### Changed
+- Bump OpenClaw to `2026.6.10`.
+
+## [0.5.78] - 2026-06-16
+
+### Changed
+- Bump OpenClaw through the `2026.5.28` and `2026.6.6` upstream releases.
+
+## [0.5.76] - 2026-05-29
+
+### Changed
+- Bump OpenClaw to `2026.5.27`.
+
+## [0.5.75] - 2026-05-28
+
+### Changed
+- **Backup-friendly persistence defaults**: new add-on options `persist_node_global` and `persist_brew_tools`, both defaulting to `false` so large optional toolchains are no longer persisted into Home Assistant backups unless users explicitly opt in.
+- `run.sh` now keeps npm global installs and Homebrew ephemeral by default, while preserving the old rebuild-survival behavior when the new toggles are enabled.
+
+### Added
+- Migration notes and documentation for older installs that already have legacy `/config/.node_global/` or `/config/.linuxbrew/` directories contributing to backup size.
+
+## [0.5.74] - 2026-05-27
+
+### Fixed
+- Bundle `node-llama-cpp` inside the add-on image so the default local memory/embeddings provider works in HAOS without manual package installs.
+- Add `cmake` to the image so `node-llama-cpp` can fall back to a source build when a prebuilt binary is unavailable for the target architecture.
+
+## [0.5.73] - 2026-05-26
+
+### Added
+- New add-on-native `oc-gateway` helper for container-supervised runtime management:
+  - `oc-gateway status` shows gateway state in the HA add-on model (`run.sh` supervisor, not systemd)
+  - `oc-gateway restart` requests gateway self-restart via `SIGUSR1` without full add-on restart
+
+### Changed
+- Troubleshooting and setup docs now use `oc-gateway status` / `oc-gateway restart` in add-on contexts to avoid confusing systemd-related CLI output.
+
+## [0.5.72] - 2026-05-04
+
+### Fixed
+- Repair startup when a persisted OpenClaw config still selects the unavailable `tools.web.search.provider=brave` provider. The add-on now clears that provider before launching the gateway so OpenClaw can start; users can reinstall/enable the Brave provider later if they want web search through Brave.
+
+## [0.5.71] - 2026-05-03
+
+### Changed
+- Bump OpenClaw through the 2026.4.29 and 2026.5.2 upstream releases.
+
 ## [0.5.70] - 2026-04-30
 
+### Changed
 - Bump OpenClaw to 2026.4.27.
+
+## [0.5.69] - 2026-04-27
+
+### Changed
+- Bump OpenClaw through the 2026.4.23 and 2026.4.24 upstream releases.
+
+## [0.5.68] - 2026-04-25
+
+### Changed
+- Bump OpenClaw through the 2026.4.14, 2026.4.15, 2026.4.21, and 2026.4.22 upstream releases.
+
+## [0.5.67] - 2026-04-25
+
+### Changed
+- Bump OpenClaw through the 2026.4.5, 2026.4.8, 2026.4.9, 2026.4.10, 2026.4.11, and 2026.4.12 upstream releases.
 
 ## [0.5.66] - 2026-04-04
 
@@ -77,6 +210,11 @@ All notable changes to the OpenClaw Assistant - NewFolk Home Assistant Add-on wi
 
 ### Fixed
 - **Gateway restart loop** (issue #95): `openclaw gateway run` is a thin wrapper that spawns `openclaw-gateway` as a long-running daemon then exits immediately. On self-restart (SIGUSR1 / `openclaw gateway restart`), the old daemon forks a new one and exits — the new PID is not a child of run.sh. The supervisor now uses a 3-tier daemon detection function (`find_gateway_daemon_pid`): (1) port ownership via `ss -tlnp`, (2) process title via `pgrep -f "openclaw-gateway"`, (3) `/proc/*/cmdline` scan for "openclaw" (catches the daemon immediately after fork, even before process.title or port bind — critical on Pi/eMMC where initialization takes 20-30 s). Detection retries up to 10 times with a final port-occupancy guard before any supervisor-initiated restart. Non-child PIDs are monitored with `kill -0` polling instead of `wait`. The loopback relay (tailnet mode) is stopped/restarted around gateway restarts to prevent port conflicts.
+
+## [0.5.61] - 2026-03-10
+
+### Fixed
+- **Gateway restart loop** (issue #95): stop the tailnet loopback relay before supervisor-initiated gateway restarts and start it again after the new daemon is launched, preventing the relay from holding the local port and trapping the add-on in an `already listening` restart loop.
 
 ## [0.5.60] - 2026-03-10
 
