@@ -2,6 +2,11 @@
 
 All notable changes to the OpenClaw Assistant - NewFolk Home Assistant Add-on will be documented in this file.
 
+## [0.5.91] - 2026-09-04
+
+### Security
+- Restrict the Home Assistant Ingress listener on port `48099` to loopback and the Supervisor's internal proxy address. The landing page and writable web terminal remain available through authenticated Home Assistant Ingress, while direct LAN HTTP and WebSocket access now returns `403`.
+
 ## [0.5.76] - 2026-05-04
 
 ### Changed

@@ -21,6 +21,17 @@ http {
   server {
     listen 48099;
 
+    # Port 48099 is the Home Assistant Ingress backend, not a public add-on
+    # endpoint. The add-on uses host networking, so without this ACL the
+    # landing page and writable ttyd shell are reachable directly from LAN.
+    # Home Assistant Supervisor proxies Ingress/watchdog requests from its
+    # fixed internal address; loopback remains available for local health
+    # checks. Keep this fail-closed for every location in this server block.
+    allow 127.0.0.1;
+    allow ::1;
+    allow 172.30.32.2;
+    deny all;
+
     # Web terminal (ttyd)
     # ttyd base-path is configured as /terminal (no trailing slash).
     # Some clients will hit /terminal first, so redirect to /terminal/.
