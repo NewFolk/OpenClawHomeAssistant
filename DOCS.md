@@ -29,7 +29,7 @@ The add-on container runs three services:
 | Service | Port | Purpose |
 |---|---|---|
 | **OpenClaw Gateway** | 18789 (configurable) | The AI agent server — handles skills, chat, automations |
-| **nginx** (Ingress proxy) | 48099 (fixed) | Serves the landing page inside Home Assistant |
+| **nginx** (Ingress proxy) | 48099 (fixed, Ingress-only) | Serves the landing page inside Home Assistant; direct LAN access is denied |
 | **ttyd** (Web terminal) | 7681 (configurable) | Provides a browser-based terminal for setup and management |
 
 When you open the add-on page in Home Assistant, nginx serves a landing page with:
@@ -315,6 +315,12 @@ When `gateway_auth_mode: trusted-proxy` is used, the add-on sets `gateway.auth.t
 |---|---|---|---|
 | `enable_terminal` | bool | `true` | Show the web terminal on the add-on page |
 | `terminal_port` | int | `7681` | Port for the terminal (ttyd). Change if 7681 conflicts. Range: 1024-65535 |
+
+The terminal remains fully available inside the authenticated Home Assistant
+Ingress page. Port `48099` is intentionally not a direct LAN endpoint: opening
+`http://<ha-host>:48099/` outside Home Assistant returns `403`. This prevents
+bypassing Home Assistant authentication for the landing page and writable ttyd
+shell. The internal ttyd listener remains bound to loopback only.
 
 ### Security & Tokens
 
@@ -987,6 +993,12 @@ Go to **Settings → Add-ons → OpenClaw Assistant - NewFolk → Log** tab. Log
 
 **Fix**: Restart the add-on. The startup script automatically cleans up stale processes. If the problem persists, stop the add-on, wait 10 seconds, then start it again.
 
+### Direct access to port 48099 returns `403`
+
+This is expected. Port `48099` is the internal backend for authenticated Home
+Assistant Ingress and rejects direct LAN clients. Open the add-on page from the
+Home Assistant UI instead; the landing page and terminal continue to work there.
+
 ### Port 7681 conflict (terminal won't load)
 
 **Symptom**: `lws_socket_bind: ERROR on binding fd to port 7681` in logs.
@@ -1195,7 +1207,7 @@ oc-config diff 1
 
 **Cause**: OpenClaw `2026.8.2+` rejects requests that carry forwarded identity headers (`X-Forwarded-For`, `X-Real-IP`, `Forwarded`) from a source that is not listed in `gateway.trustedProxies`. It fails closed rather than trusting a client-supplied IP.
 
-**In `lan_https` mode** this is fixed automatically from v0.5.90: the add-on's own HTTPS proxy runs on loopback and sets those headers, so `127.0.0.1` and `::1` are added to `gateway.trustedProxies` for you. Update the add-on and restart.
+**In `lan_https` mode** the add-on's own HTTPS proxy runs on loopback, so only `127.0.0.1` and `::1` are needed in `gateway.trustedProxies`. Do not add the client LAN subnet: trusted entries identify proxies, not clients. From v0.5.91 the proxy also omits forwarded identity headers for same-host loopback clients and overwrites them for real LAN clients. This keeps older Home Assistant integration entries that still use the HTTPS port working while preventing spoofed forwarded chains.
 
 **In `lan_reverse_proxy` mode** (or `custom` with your own proxy), set `gateway_trusted_proxies` to the address your proxy connects *from* — not the address clients use:
 
@@ -1203,9 +1215,9 @@ oc-config diff 1
 gateway_trusted_proxies: "172.30.0.0/16"
 ```
 
-Your proxy must also send a trustworthy `X-Forwarded-For`. In Nginx Proxy Manager this is the default; in a hand-written nginx config use `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`.
+Your proxy must also send a trustworthy `X-Forwarded-For`. In a hand-written single-hop nginx config, overwrite the inbound value with `proxy_set_header X-Forwarded-For $remote_addr;`; do not append an untrusted client-supplied header.
 
-> **Note**: the resolved client IP must not itself be loopback. Browsing from the Home Assistant host over `127.0.0.1` through the proxy therefore still fails attribution — use the machine's LAN address instead.
+> **Note**: the resolved proxied client IP must not itself be loopback. The built-in v0.5.91 proxy handles same-host requests by suppressing proxy identity headers so normal token authentication applies directly.
 
 ### Gateway restart loop after an OpenClaw upgrade (`requires migration`)
 
